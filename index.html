@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Focus Timer – 集中タイマー & ホワイトノイズ（無料・登録不要）</title>
+  <meta name="description" content="5秒で始まる、ADHD・先延ばし対策のためのポモドーロタイマー。アカウント登録不要、ブラウザですぐ使える。" />
+  <meta property="og:title" content="Focus Timer – 集中タイマー & ホワイトノイズ" />
+  <meta property="og:description" content="5秒で始まる、ADHD・先延ばし対策のためのポモドーロタイマー。アカウント登録不要、ブラウザですぐ使える。" />
+  <meta property="og:type" content="website" />
+  <!-- TODO(release): og:image未設定。10_release/でOGP画像を用意してから追加する（08_growth_aso/候補A-B_SEO集客計画.md参照）。 -->
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <!--
+    AdSense本番導入時は、下記コメントを外して実際のclient IDに差し替える。
+    同じclient IDをjs/ads.jsのADSENSE_CLIENT_IDにも設定すること。
+    詳細手順は 07_monetization/AdSense導入手順.md を参照。
+
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+  -->
+</head>
+<body>
+  <div id="fatal-error" style="display:none; background:#fee; color:#900; padding:1rem; font-family:monospace; white-space:pre-wrap; font-size:0.85rem;"></div>
+  <main id="app">
+
+    <section id="screen-onboarding" class="screen" hidden>
+      <div class="onboarding-step" data-step="0">
+        <h2>何に集中を乱されますか？</h2>
+        <div class="button-stack" id="distraction-options">
+          <button type="button" class="option-button">スマホ</button>
+          <button type="button" class="option-button">雑音</button>
+          <button type="button" class="option-button">タスクの山</button>
+          <button type="button" class="option-button">その他</button>
+        </div>
+      </div>
+
+      <div class="onboarding-step" data-step="1" hidden>
+        <h2>デフォルトサウンドの選択</h2>
+        <div class="sound-scroll" id="onboarding-sound-options"></div>
+      </div>
+
+      <div class="onboarding-step" data-step="2" hidden>
+        <h2>通知を有効にしますか？</h2>
+        <p class="muted">セッション終了時にお知らせします——それだけです。</p>
+        <button type="button" id="enable-notifications-btn" class="primary-button">有効にする</button>
+        <button type="button" id="skip-notifications-btn" class="text-link">今はしない</button>
+      </div>
+    </section>
+
+    <section id="screen-home" class="screen" hidden>
+      <header class="home-header">
+        <span id="streak-label" class="muted">🔥 0日連続</span>
+        <button type="button" id="open-settings-btn" class="icon-button" aria-label="設定">⚙</button>
+      </header>
+
+      <div class="home-center">
+        <button type="button" id="start-session-btn" class="start-button">
+          <span class="start-label">Start</span>
+          <span id="start-duration-label" class="start-duration">25:00</span>
+        </button>
+
+        <button type="button" id="open-sound-picker-btn" class="text-link">
+          🔊 <span id="current-sound-label">Rain</span>
+        </button>
+
+        <button type="button" id="open-session-setup-btn" class="text-link muted">カスタマイズ</button>
+      </div>
+
+      <nav class="tab-bar">
+        <button type="button" class="tab-button active" data-tab="home">ホーム</button>
+        <button type="button" class="tab-button" data-tab="stats">統計</button>
+      </nav>
+    </section>
+
+    <section id="screen-stats" class="screen" hidden>
+      <h2>統計</h2>
+      <ul id="stats-list" class="stats-list"></ul>
+      <div id="stats-banner-ad" class="banner-ad-slot"></div>
+
+      <nav class="tab-bar">
+        <button type="button" class="tab-button" data-tab="home">ホーム</button>
+        <button type="button" class="tab-button active" data-tab="stats">統計</button>
+      </nav>
+    </section>
+
+    <section id="screen-session-active" class="screen" hidden>
+      <div id="countdown-ring-container" class="ring-container"></div>
+      <button type="button" id="end-session-btn" class="text-link muted">セッション終了</button>
+    </section>
+
+    <section id="screen-break-prompt" class="screen" hidden>
+      <p class="headline" id="break-headline">お疲れさま、25分完了。</p>
+      <p class="muted" id="break-streak-label">🔥 0日連続</p>
+      <p class="break-countdown" id="break-countdown-label">05:00 休憩</p>
+      <button type="button" id="skip-break-btn" class="text-link muted">休憩をスキップして次のセッションへ</button>
+    </section>
+
+    <section id="screen-session-complete" class="screen" hidden>
+      <p class="headline" id="complete-total-label">今日は0分集中しました</p>
+      <p class="muted" id="complete-streak-label">🔥 0日連続</p>
+    </section>
+
+    <div id="ad-overlay" class="ad-overlay" hidden>
+      <div id="ad-overlay-container"></div>
+    </div>
+
+    <dialog id="sound-picker-dialog">
+      <h3>サウンドを選択</h3>
+      <ul id="sound-picker-list" class="sound-picker-list"></ul>
+      <button type="button" class="text-link" data-close-dialog>閉じる</button>
+    </dialog>
+
+    <dialog id="session-setup-dialog">
+      <h3>セッションをカスタマイズ</h3>
+      <div class="preset-row">
+        <button type="button" class="preset-button" data-work="25" data-break="5">25/5</button>
+        <button type="button" class="preset-button" data-work="50" data-break="10">50/10</button>
+      </div>
+      <label>
+        作業時間（分）
+        <input type="number" id="setup-work-minutes" min="5" max="120" step="5" />
+      </label>
+      <label>
+        休憩時間（分）
+        <input type="number" id="setup-break-minutes" min="1" max="30" step="1" />
+      </label>
+      <button type="button" id="setup-start-btn" class="primary-button">Start</button>
+    </dialog>
+
+    <dialog id="settings-dialog">
+      <h3>設定</h3>
+      <label>
+        作業時間（分）
+        <input type="number" id="settings-work-minutes" min="5" max="120" step="5" />
+      </label>
+      <label>
+        休憩時間（分）
+        <input type="number" id="settings-break-minutes" min="1" max="30" step="1" />
+      </label>
+      <label>
+        音量
+        <input type="range" id="settings-volume" min="0" max="1" step="0.05" />
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="settings-notifications-toggle" />
+        セッション終了通知
+      </label>
+      <button type="button" id="settings-done-btn" class="primary-button">完了</button>
+    </dialog>
+
+  </main>
+
+  <script>
+    function showFatalError(text) {
+      var el = document.getElementById("fatal-error");
+      el.style.display = "block";
+      el.textContent += (el.textContent ? "\n\n" : "") + text;
+    }
+    window.addEventListener(
+      "error",
+      function (e) {
+        var target = e.target;
+        if (target && target !== window && (target.src || target.href)) {
+          showFatalError("Resource failed to load: " + (target.src || target.href));
+          return;
+        }
+        showFatalError("Error: " + e.message + (e.filename ? "\n" + e.filename + ":" + e.lineno + ":" + e.colno : ""));
+      },
+      true
+    );
+    window.addEventListener("unhandledrejection", function (e) {
+      showFatalError("Unhandled rejection: " + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+    });
+    setTimeout(function () {
+      if (document.querySelectorAll(".screen:not([hidden])").length === 0) {
+        showFatalError(
+          "診断: 2秒経ってもどの画面も表示されていません。js/app.js が実行されていない可能性があります。" +
+            "ブラウザのキャッシュが古い可能性があるので、Cmd+Shift+R（強制リロード）を試してください。"
+        );
+      }
+    }, 2000);
+  </script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
